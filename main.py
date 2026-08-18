@@ -2,16 +2,31 @@ import asyncio
 import os
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
+from aiohttp import web
 import yt_dlp
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+PORT = int(os.getenv("PORT", 8080))
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 
+# Ֆեյք HTTP սերվեր Render-ի համար
+async def handle_ping(request):
+    return web.Response(text="Bot is running!")
+
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get("/", handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+
+
 def download_media(url: str, output_path: str):
-    """Ներբեռնում է տեսանյութը yt-dlp-ով"""
     ydl_opts = {
         "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
         "outtmpl": output_path,
@@ -25,7 +40,7 @@ def download_media(url: str, output_path: str):
 @dp.message(Command("start"))
 async def start_cmd(message: types.Message):
     await message.answer(
-        "Ողջույն 👋 Ուղարկիր ինձ Reels, TikTok, Shorts կամ X-ի հղումը, և եu այն կներբեռնեմ:"
+        "Ողջույն 👋 Ուղարկիր ինձ Reels, TikTok, Shorts կամ X-ի հղումը, և ես այն կներբեռնեմ:"
     )
 
 
@@ -35,10 +50,8 @@ async def handle_link(message: types.Message):
     file_path = f"video_{message.from_user.id}.mp4"
 
     try:
-        # Ներբեռնում ենք yt-dlp-ով ֆոնում
         await asyncio.to_thread(download_media, message.text, file_path)
 
-        # Ուղարկում ենք Telegram-ում
         await message.answer_video(
             video=types.FSInputFile(file_path), caption="✨ Ահա ձեր տեսանյութը"
         )
@@ -48,12 +61,13 @@ async def handle_link(message: types.Message):
         await status_msg.edit_text(f"❌ Չհաջողվեց ներբեռնել: {str(e)}")
 
     finally:
-        # Ջնջում ենք ֆայլը սերվերից, որ տեղ չզբաղեցնի
         if os.path.exists(file_path):
             os.remove(file_path)
 
 
 async def main():
+    # Միացնում ենք և՛ web սերվերը (Render-ի համար), և՛ Telegram bot-ը
+    await start_web_server()
     await dp.start_polling(bot)
 
 
