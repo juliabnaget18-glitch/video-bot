@@ -1,25 +1,25 @@
 import asyncio
 import os
-import httpx
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
+import yt_dlp
 
-# Token-ը վերցնելու է Render-ի environment variable-ից (անվտանգության համար)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 
-async def get_direct_video_url(media_url: str):
-    url = "https://api.cobalt.tools/"
-    headers = {"Accept": "application/json", "Content-Type": "application/json"}
-    payload = {"url": media_url}
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url, json=payload, headers=headers)
-        data = response.json()
-        return data.get("url")
+def download_media(url: str, output_path: str):
+    """Ներբեռնում է տեսանյութը yt-dlp-ով"""
+    ydl_opts = {
+        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "outtmpl": output_path,
+        "quiet": True,
+        "no_warnings": True,
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
 
 
 @dp.message(Command("start"))
@@ -31,19 +31,26 @@ async def start_cmd(message: types.Message):
 
 @dp.message(F.text.startswith("http"))
 async def handle_link(message: types.Message):
-    status_msg = await message.answer("⏳ Մշակվում է, սպասեք...")
+    status_msg = await message.answer("⏳ Տեսանյութը մշակվում է, սպասեք...")
+    file_path = f"video_{message.from_user.id}.mp4"
 
     try:
-        video_url = await get_direct_video_url(message.text)
+        # Ներբեռնում ենք yt-dlp-ով ֆոնում
+        await asyncio.to_thread(download_media, message.text, file_path)
 
-        if video_url:
-            await message.answer_video(video=video_url, caption="✨ Ահա տեսանյութը")
-            await status_msg.delete()
-        else:
-            await status_msg.edit_text("❌ Չհաջողվեց ստանալ տեսանյութի հղումը:")
+        # Ուղարկում ենք Telegram-ում
+        await message.answer_video(
+            video=types.FSInputFile(file_path), caption="✨ Ահա ձեր տեսանյութը"
+        )
+        await status_msg.delete()
 
-    except Exception:
-        await status_msg.edit_text("❌ Սխալ տեղի ունեցավ, փորձեք մեկ այլ հղում:")
+    except Exception as e:
+        await status_msg.edit_text(f"❌ Չհաջողվեց ներբեռնել: {str(e)}")
+
+    finally:
+        # Ջնջում ենք ֆայլը սերվերից, որ տեղ չզբաղեցնի
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
 
 async def main():
