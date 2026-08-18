@@ -6,14 +6,14 @@ from aiohttp import web
 import yt_dlp
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-PORT = int(os.getenv("PORT", 8080))
+PORT = int(os.getenv("PORT", 10000))
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 
 async def handle_ping(request):
-    return web.Response(text="Bot is running!")
+    return web.Response(text="Bot is live!")
 
 
 async def start_web_server():
@@ -31,7 +31,6 @@ def download_media(url: str, output_path: str):
         "outtmpl": output_path,
         "quiet": True,
         "no_warnings": True,
-        # TikTok-ի ու Instagram-ի համար հատուկ Header-ներ
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -63,9 +62,7 @@ async def handle_link(message: types.Message):
         await status_msg.delete()
 
     except Exception as e:
-        await status_msg.edit_text(
-            f"❌ Չհաջողվեց ներբեռնել: {str(e)[:150]}"
-        )  # կարճ սխալի տեքստ
+        await status_msg.edit_text(f"❌ Չհաջողվեց ներբեռնել: {str(e)[:150]}")
 
     finally:
         if os.path.exists(file_path):
