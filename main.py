@@ -11,7 +11,6 @@ PORT = int(os.getenv("PORT", 10000))
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Ֆեյք HTTP սերվեր Render-ի համար
 async def handle_ping(request):
     return web.Response(text="Bot is live!")
 
@@ -24,11 +23,12 @@ async def start_web_server():
     await site.start()
 
 async def download_via_cobalt(url: str):
-    # Օգտագործում ենք Cobalt-ի ակտիվ API endpoint-ը
-    api_url = "https://co.wuk.sh/api/json"
+    # Օգտագործում ենք պաշտոնական կայուն API-ն
+    api_url = "https://api.cobalt.tools/api/json"
     headers = {
         "Accept": "application/json",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     }
     payload = {
         "url": url,
@@ -41,15 +41,17 @@ async def download_via_cobalt(url: str):
                 data = await response.json()
                 if data.get("status") in ["redirect", "stream"]:
                     return data.get("url")
-            raise Exception("Չհաջողվեց ստանալ տեսանյութի ուղիղ հղումը:")
+                elif data.get("status") == "error":
+                    raise Exception(data.get("error", {}).get("code", "Անհայտ սխալ"))
+            raise Exception("API-ն պատասխան չտվեց:")
 
 @dp.message(Command("start"))
 async def start_cmd(message: types.Message):
-    await message.answer("Ողջույն 👋 Ուղարկիր ինձ Reels, TikTok, Shorts կամ X-ի հղումը, և ես այն կներբեռնեմ:")
+    await message.answer("Ողջույն 👋 Ուղարկիր ինձ Reels, TikTok, Shorts կամ X-ի հղումը:")
 
 @dp.message(F.text.startswith("http"))
 async def handle_link(message: types.Message):
-    status_msg = await message.answer("⏳ Տեսանյութը մշակվում է, սպասեք...")
+    status_msg = await message.answer("⏳ Տեսանյութը մշակվում է...")
     
     try:
         video_url = await download_via_cobalt(message.text)
